@@ -150,7 +150,8 @@ jobs:
 
       - name: Patch theos-jailed insert_dylib with LIEF
         run: |
-          PY_BIN="$(head -n1 "$(command -v cyan)" | sed 's/^#!//')"
+          PY_BIN="$(head -n1 "$(command -v cyan)" | sed 's/^#!//' | awk '{print $1}')"
+          echo "Using Python: $PY_BIN"
           "$PY_BIN" -c "import lief; print('LIEF version:', lief.__version__)"
           cat << EOF > "$THEOS/mod/jailed/bin/insert_dylib"
           #!/usr/bin/env bash
