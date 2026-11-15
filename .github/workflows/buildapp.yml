@@ -150,6 +150,7 @@ jobs:
 
       - name: Patch theos-jailed insert_dylib with LIEF
         run: |
+          pipx inject cyan lief
           PY_BIN="$(head -n1 "$(command -v cyan)" | sed 's/^#!//' | awk '{print $1}')"
           echo "Using Python: $PY_BIN"
           "$PY_BIN" -c "import lief; print('LIEF version:', lief.__version__)"
@@ -164,13 +165,10 @@ jobs:
               sys.exit(1)
           dylib_path, bin_path = args[-2], args[-1]
           subprocess.run(["codesign", "--remove-signature", bin_path], stderr=subprocess.DEVNULL)
-          obj = lief.parse(bin_path)
-          if hasattr(obj, "add"):
-              obj.add(lief.MachO.DylibCommand.weak_lib(dylib_path))
-          else:
-              for b in obj:
-                  b.add(lief.MachO.DylibCommand.weak_lib(dylib_path))
-          obj.write(bin_path)
+          fat = lief.MachO.parse(bin_path)
+          for b in fat:
+              b.add(lief.MachO.DylibCommand.weak_lib(dylib_path))
+          fat.write(bin_path)
           PYEOF
           EOF
           chmod +x "$THEOS/mod/jailed/bin/insert_dylib"
