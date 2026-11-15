@@ -148,6 +148,34 @@ jobs:
           wget --quiet "https://github.com/inoahdev/tbd/releases/download/2.2/tbd-mac" -O /usr/local/bin/tbd
           chmod +x /usr/local/bin/tbd
 
+      - name: Patch theos-jailed insert_dylib with LIEF
+        run: |
+          PY_BIN="$(pipx environment --value PIPX_LOCAL_VENVS)/pyzule-rw/bin/python"
+          "$PY_BIN" -c "import lief; print('LIEF version:', lief.__version__)"
+          cat << EOF > "$THEOS/mod/jailed/bin/insert_dylib"
+          #!/usr/bin/env bash
+          set -euo pipefail
+          exec "$PY_BIN" - "\$@" << 'PYEOF'
+          import sys, subprocess, lief
+          lief.logging.disable()
+          args = [a for a in sys.argv[1:] if not a.startswith("-")]
+          if len(args) < 2:
+              sys.exit(1)
+          dylib_path, bin_path = args[-2], args[-1]
+          subprocess.run(["codesign", "--remove-signature", bin_path], stderr=subprocess.DEVNULL)
+          obj = lief.parse(bin_path)
+          if hasattr(obj, "add"):
+              obj.add(lief.MachO.DylibCommand.weak_lib(dylib_path))
+          else:
+              for b in obj:
+                  b.add(lief.MachO.DylibCommand.weak_lib(dylib_path))
+          obj.write(bin_path)
+          PYEOF
+          EOF
+          chmod +x "$THEOS/mod/jailed/bin/insert_dylib"
+        env:
+          THEOS: ${{ github.workspace }}/theos
+
       - name: Hash YT ipa url
         run: |
           URL_YT="$(jq -r '.inputs.decrypted_youtube_url' $GITHUB_EVENT_PATH)"
